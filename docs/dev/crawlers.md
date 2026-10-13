@@ -117,4 +117,8 @@ Cloudflare managed challenge 只能执行 JS 越过, 因此受保护的来源经
 
 **番号 → content_id 匹配**: r18 主键是 DMM `content_id` (`midv00123`), 输入是标准番号 (`MIDV-123`), 当前为基础实现 (dvd_id 精确 + content_id 三种零填充变体). 检索类查询的扩展点在 `R18Repository`, 不影响爬虫接口.
 
-**图片 URL 补全** (`mapper.py`): dump 中所有图片 URL 均为无域名、无扩展名的相对路径, 映射层负责补全并生成剧照全量列表; 单图标记与 CDN 选择见该文件.
+**图片 URL 补全** (`mapper.py`): dump 中所有图片 URL 均为无域名、无扩展名的相对路径, 映射层负责补全并生成剧照全量列表; 单图标记见该文件, 域名与路径改写见下节.
+
+## DMM 图片 CDN
+
+**高清地址只能推导**: mono / rental 详情页只引用 `pics` 地址, 只有配信柜台 (digital / FANZA TV) 的接口直接返回 `aws` 地址. 两个 CDN 存同一份文件, 路径差在 `mono/movie/` 下 pics 多一层被 CDN 忽略的分类目录 (`adult` / `japanese`), aws 只接受省去该层的规范路径; 其余分类 (e-book 等) 没有 aws 副本. 规则在 `sites/dmm_cdn.py`, 由 DMM 详情页与 r18 dump 共用; 候选按高清在前、标准兜底排列, 少量条目的 aws 副本反而更小, 缺图时按序回退.

@@ -1,7 +1,7 @@
 """dump 中图片 URL 无域名、无扩展名, 映射时补全为 DMM 绝对 URL.
 
 指定 JP/EN 时仅取对应语言, 不允许回退; 未指定则日文优先再回退英文.
-digital/video 与 digital/amateur 产出双候选 (aws 高清 → pics 标准); gallery 只用 pics, 不生成 aws 候选.
+有高清副本的分类 (mono 与 digital 视频) 产出双候选 (aws 高清 → pics 标准); gallery 只用 pics, 不生成 aws 候选.
 """
 
 import re
@@ -9,24 +9,15 @@ from typing import TYPE_CHECKING
 
 from ...enums import ActorGender, Language
 from ..models import FilmActor, MediaMetadata
+from ..sites.dmm_cdn import PICS_CDN, image_candidates
 
 if TYPE_CHECKING:
     from .models import R18VideoDetail
 
 
-_CDN_HIGH_RES = "https://awsimgsrc.dmm.co.jp/pics_dig"
-_CDN_STANDARD = "https://pics.dmm.co.jp"
-
-
 def _image_urls(path: str | None) -> list[str]:
-    if not path:
-        return []
-    if path.startswith(("digital/video/", "digital/amateur/")):
-        return [
-            f"{_CDN_HIGH_RES}/{path}.jpg",
-            f"{_CDN_STANDARD}/{path}.jpg",
-        ]
-    return [f"{_CDN_STANDARD}/{path}.jpg"]
+    """单图相对路径 → 高清候选在前、标准 CDN 兜底的地址列表."""
+    return image_candidates(f"{PICS_CDN}/{path}.jpg") if path else []
 
 
 _GALLERY_NUM_RE = re.compile(r"-(\d+)$")
@@ -46,13 +37,13 @@ def _generate_gallery(first: str | None, last: str | None) -> list[str]:
     last_num = _parse_gallery_num(last) if last else None
 
     if first_num is None:
-        return [f"{_CDN_STANDARD}/{first}.jpg"]
+        return [f"{PICS_CDN}/{first}.jpg"]
 
     if last_num is None or last_num < first_num:
-        return [f"{_CDN_STANDARD}/{first}.jpg"]
+        return [f"{PICS_CDN}/{first}.jpg"]
 
     base = _GALLERY_NUM_RE.sub("", first)
-    return [f"{_CDN_STANDARD}/{base}-{n}.jpg" for n in range(first_num, last_num + 1)]
+    return [f"{PICS_CDN}/{base}-{n}.jpg" for n in range(first_num, last_num + 1)]
 
 
 def to_metadata(detail: R18VideoDetail, number: str, language: Language | None = None) -> MediaMetadata:

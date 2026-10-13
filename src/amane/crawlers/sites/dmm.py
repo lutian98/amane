@@ -14,6 +14,7 @@ from ..http import RequestError
 from ..models import FetchOptions, MediaMetadata, SearchQuery, film_actors
 from ..parsing import CSSSelector, extract_all_texts, extract_text
 from .dmm_api import DigitalResponse, DmmTvResponse, FanzaTvResponse, digital_payload, dmm_tv_payload, fanza_tv_payload
+from .dmm_cdn import image_candidates
 
 
 class Category(StrEnum):
@@ -55,6 +56,13 @@ def _parse_category(url: str) -> Category:
     if "/rental/" in url:
         return Category.RENTAL
     return Category.OTHER
+
+
+def _poster_candidates(cover_url: str) -> list[str]:
+    """封面地址 (pl 形态) → 竖版海报候选; 不是 pl 形态时返回空."""
+    if not cover_url.endswith("pl.jpg"):
+        return []
+    return image_candidates(cover_url.replace("pl.jpg", "ps.jpg"))
 
 
 class DmmCrawler(Crawler):
@@ -327,20 +335,23 @@ class DmmCrawler(Crawler):
             "//td[contains(text(),'ジャンル')]/following-sibling::td/a/text()",
         )
 
-        # 封面: 优先 JSON-LD image, 再回退 og:image.
-        thumb_url = ""
+        # 封面: 优先 JSON-LD image, 再回退 og:image; 两者都只给标准 CDN 地址.
+        cover_url = ""
         json_ld_text = extract_text(html, '//script[@type="application/ld+json"]/text()')
         if json_ld_text:
             try:
                 ld = json.loads(json_ld_text)
                 img = ld.get("image", "")
-                thumb_url = img if isinstance(img, str) else (img[0] if isinstance(img, list) and img else "")
+                cover_url = img if isinstance(img, str) else (img[0] if isinstance(img, list) and img else "")
             except KeyError, TypeError, ValueError:
                 pass
-        if not thumb_url:
-            thumb_url = extract_text(html, '//meta[@property="og:image"]/@content') or ""
-        if thumb_url:
-            thumb_url = thumb_url.replace("ps.jpg", "pl.jpg")
+        if not cover_url:
+            cover_url = extract_text(html, '//meta[@property="og:image"]/@content') or ""
+        cover_url = cover_url.replace("ps.jpg", "pl.jpg")
+
+        # 页面只引用标准 CDN, 高清副本由 dmm_cdn 推导; 竖版海报取 ps 形态.
+        thumb_urls = image_candidates(cover_url) if cover_url else []
+        poster_urls = _poster_candidates(cover_url)
 
         extrafanart_raw = extract_all_texts(
             html, "//div[@id='sample-image-block']/a/@href", "//a[@name='sample-image']/img/@data-lazy"
@@ -375,7 +386,8 @@ class DmmCrawler(Crawler):
             tags=tags,
             series=series or None,
             plot=plot or None,
-            thumb_urls=[thumb_url] if thumb_url else [],
+            thumb_urls=thumb_urls,
+            poster_urls=poster_urls,
             score=score,
             directors=directors,
             extrafanart=extrafanart,
@@ -408,9 +420,10 @@ class DmmCrawler(Crawler):
         )
         tags = extract_all_texts(html, "//td[contains(text(),'ジャンル')]/following-sibling::td/a/text()")
 
-        thumb_url = extract_text(html, '//meta[@property="og:image"]/@content')
-        if thumb_url:
-            thumb_url = thumb_url.replace("ps.jpg", "pl.jpg")
+        # 页面只引用标准 CDN, 高清副本由 dmm_cdn 推导; 竖版海报取 ps 形态.
+        cover_url = extract_text(html, '//meta[@property="og:image"]/@content').replace("ps.jpg", "pl.jpg")
+        thumb_urls = image_candidates(cover_url) if cover_url else []
+        poster_urls = _poster_candidates(cover_url)
 
         extrafanart = extract_all_texts(html, "//a[@name='sample-image']/img/@src")
         plot = extract_text(html, CSSSelector(".clear p::text"))
@@ -428,7 +441,8 @@ class DmmCrawler(Crawler):
             tags=tags,
             series=series or None,
             plot=plot or None,
-            thumb_urls=[thumb_url] if thumb_url else [],
+            thumb_urls=thumb_urls,
+            poster_urls=poster_urls,
             score=score,
             directors=directors,
             extrafanart=extrafanart,

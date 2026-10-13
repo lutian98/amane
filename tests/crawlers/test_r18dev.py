@@ -25,17 +25,21 @@ class TestImageUrls:
         assert urls[0].startswith("https://awsimgsrc.dmm.co.jp/pics_dig/")
         assert urls[1].startswith("https://pics.dmm.co.jp/")
 
-    def test_mono_single_url(self):
-        """mono/movie 仅产出标准 CDN URL."""
+    def test_mono_dual_urls(self):
+        """mono/movie 产出双 URL; 高清路径省去 cid 前的分类目录."""
         urls = _image_urls("mono/movie/japanese/n_617db0242/n_617db0242pl")
-        assert len(urls) == 1
-        assert urls[0] == "https://pics.dmm.co.jp/mono/movie/japanese/n_617db0242/n_617db0242pl.jpg"
+        assert urls == [
+            "https://awsimgsrc.dmm.co.jp/pics_dig/mono/movie/n_617db0242/n_617db0242pl.jpg",
+            "https://pics.dmm.co.jp/mono/movie/japanese/n_617db0242/n_617db0242pl.jpg",
+        ]
 
-    def test_rental_single_url(self):
-        """rental (mono/movie) 仅产出标准 CDN URL."""
+    def test_rental_dual_urls(self):
+        """rental (mono/movie, 无分类目录) 同样产出双 URL."""
         urls = _image_urls("mono/movie/1rcjd47r/1rcjd47rpl")
-        assert len(urls) == 1
-        assert "awsimgsrc" not in urls[0]
+        assert urls == [
+            "https://awsimgsrc.dmm.co.jp/pics_dig/mono/movie/1rcjd47r/1rcjd47rpl.jpg",
+            "https://pics.dmm.co.jp/mono/movie/1rcjd47r/1rcjd47rpl.jpg",
+        ]
 
     def test_ebook_single_url(self):
         """digital/e-book 仅产出标准 CDN URL (非 digital/video)."""
